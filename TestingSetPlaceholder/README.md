@@ -1,0 +1,1 @@
+This is a placeholder test dataset you can use for testing our feature extraction code. Remove this folder before submitting the project.
