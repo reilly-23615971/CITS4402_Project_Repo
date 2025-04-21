@@ -194,15 +194,19 @@ def createDataset(
 
         # Extract the sampled images, using new names to avoid similarly
         # named positive and negative samples overwriting each other
-        for index, img in enumerate(trainPositive + trainNegative):
+        fullTrain = trainPositive + trainNegative
+        rand.shuffle(fullTrain)
+        fullTest = testPositive + testNegative
+        rand.shuffle(fullTest)
+        for index, img in enumerate(fullTrain):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(trainPath, (f'{index:05}' + ext))
+                img, os.path.join(trainPath, (f'{index:06}' + ext))
             )
-        for index, img in enumerate(testPositive + testNegative):
+        for index, img in enumerate(fullTest):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(testPath, (f'{index:05}' + ext))
+                img, os.path.join(testPath, (f'{index:06}' + ext))
             ) 
     
     # Compress the newly extracted datasets
