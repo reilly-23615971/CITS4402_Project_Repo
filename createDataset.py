@@ -192,23 +192,33 @@ def createDataset(
         testNegative = sampledNegative[:100]
         trainNegative = sampledNegative[100:]
 
+        # Randomise the image order
+        for set in (trainPositive, trainNegative, testPositive, testNegative):
+            rand.shuffle(set)
+
         # Extract the sampled images, using new names to avoid similarly
         # named positive and negative samples overwriting each other
-        fullTrain = trainPositive + trainNegative
-        rand.shuffle(fullTrain)
-        fullTest = testPositive + testNegative
-        rand.shuffle(fullTest)
-        for index, img in enumerate(fullTrain):
+        # First letter of name indicates if sample is positive/negative
+        for index, img in enumerate(trainPositive):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(trainPath, (f'{index:06}' + ext))
+                img, os.path.join(trainPath, ('P' + f'{index:06}' + ext))
             )
-        for index, img in enumerate(fullTest):
+        for index, img in enumerate(trainNegative):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(testPath, (f'{index:06}' + ext))
+                img, os.path.join(trainPath, ('N' + f'{index:06}' + ext))
+            )
+        for index, img in enumerate(testPositive):
+            _, ext = os.path.splitext(img.name)
+            tf._extract_member(
+                img, os.path.join(testPath, ('P' + f'{index:06}' + ext))
             ) 
-    
+        for index, img in enumerate(testNegative):
+            _, ext = os.path.splitext(img.name)
+            tf._extract_member(
+                img, os.path.join(testPath, ('N' + f'{index:06}' + ext))
+            )     
     # Compress the newly extracted datasets
     with tarfile.open(trainOutput + '.tar.gz', "w:gz") as tar:
         tar.add(trainPath, arcname = os.path.basename(trainPath))
