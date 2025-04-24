@@ -1,3 +1,4 @@
 .vscode/settings.json
 .DS_Store
 .env
+.ipynb_checkpoints/hog_feature_extaction-checkpoint.ipynb
