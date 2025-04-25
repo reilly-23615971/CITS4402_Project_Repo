@@ -33,6 +33,8 @@ Parameters:
     imagePath: directory within the tarfile to select and extract images
     from, containing folders for positive and negative examples.
 
+    guiPath: name of the directory to output images for testing the GUI
+
     positiveSamples: folder in imagePath containing positive samples
 
     negativeSamples: folder in imagePath containing negative samples
@@ -58,9 +60,9 @@ order to follow the project task statement
 def createDataset(
         tarfilePath, trainSize = 500, 
         workingPath = './WorkingData',  imagePath = '', 
-        positiveSamples = 'positive', negativeSamples = 'negative',
-        trainOutput = 'train_set', testOutput = 'test_set',
-        withReplacement = False, randomSeed = None):
+        guiPath = './Testing Images', positiveSamples = 'positive', 
+        negativeSamples = 'negative', trainOutput = 'train_set', 
+        testOutput = 'test_set', withReplacement = False, randomSeed = None):
     # Validate parameters
     if not isinstance(trainSize, int) or trainSize < 1:
         raise ValueError(
@@ -73,6 +75,11 @@ def createDataset(
 
 
     # Create working directories, throw error if they already exist
+    try: os.mkdir(guiPath)
+    except FileExistsError: raise FileExistsError((
+        f'GUI test image directory "Testing Images" already exists; '
+        'move or delete the existing directory before running again'
+    ))
     try: os.mkdir(workingPath)
     except FileExistsError: raise FileExistsError((
         f'Specified working directory "{workingPath}" already exists; use a '
@@ -97,14 +104,16 @@ def createDataset(
         if len(
             [item for item in fileNames if item.startswith(imagePathClean)]
         ) == 0:
-            # Delete the working directory since about to throw error
+            # Delete the working directories since about to throw error
             shutil.rmtree(workingPath)
+            shutil.rmtree(guiPath)
             raise FileNotFoundError((
                 f'Specified image directory "{imagePathClean}" not found in '
                 f'tarfile "{tarfilePath}"'
             ))
         elif os.path.join(imagePathClean, positiveSamples) not in fileNames:
             shutil.rmtree(workingPath)
+            shutil.rmtree(guiPath)
             raise FileNotFoundError((
                 f'Specified positive sample directory "{positiveSamples}" not'
                 f' found in image directory "{imagePathClean}" within '
@@ -112,6 +121,7 @@ def createDataset(
             ))
         elif os.path.join(imagePathClean, negativeSamples) not in fileNames:
             shutil.rmtree(workingPath)
+            shutil.rmtree(guiPath)
             raise FileNotFoundError((
                 f'Specified negative sample directory "{negativeSamples}" not'
                 f' found in image directory "{imagePathClean}" within '
@@ -139,6 +149,7 @@ def createDataset(
         ]
         if len(positiveFiles) == 0:
             shutil.rmtree(workingPath)
+            shutil.rmtree(guiPath)
             raise FileNotFoundError((
                 'No positive samples were found in the tarfile. '
                 'Check that the specified directory '
@@ -146,10 +157,11 @@ def createDataset(
                 f'correct and that the specified tarfile "{tarfilePath}" '
                 'contains the desired images.'
             ))
-        elif not withReplacement and len(positiveFiles) < (trainSize//2) + 100:
+        elif not withReplacement and len(positiveFiles) < (trainSize//2) + 110:
             shutil.rmtree(workingPath)
+            shutil.rmtree(guiPath)
             raise ValueError((
-                f'Training and testing datasets require {(trainSize//2) + 100}'
+                f'Training and testing datasets require {(trainSize//2) + 110}'
                 f' positive samples total, but only {len(positiveFiles)} were '
                 f'found. Check that the tarfile "{tarfilePath}" contains '
                 'enough images, or set withReplacement = True to allow for '
@@ -157,6 +169,7 @@ def createDataset(
             ))
         elif len(negativeFiles) == 0:
             shutil.rmtree(workingPath)
+            shutil.rmtree(guiPath)
             raise FileNotFoundError((
                 'No negative samples were found in the tarfile. '
                 'Check that the specified directory '
@@ -164,10 +177,11 @@ def createDataset(
                 f'correct and that the specified tarfile "{tarfilePath}" '
                 'contains the desired images.'
             ))
-        elif not withReplacement and len(negativeFiles) < (trainSize//2) + 100:
+        elif not withReplacement and len(negativeFiles) < (trainSize//2) + 110:
             shutil.rmtree(workingPath)
+            shutil.rmtree(guiPath)
             raise ValueError((
-                f'Training and testing datasets require {(trainSize//2) + 100}'
+                f'Training and testing datasets require {(trainSize//2) + 110}'
                 f' negative samples total, but only {len(negativeFiles)} were '
                 f'found. Check that the tarfile "{tarfilePath}" contains '
                 'enough images, or set withReplacement = True to allow for '
@@ -179,22 +193,27 @@ def createDataset(
         
         # Randomly select enough files for training and testing sets
         sampledPositive = [img for img in rand.choice(
-            positiveFiles, (trainSize//2) + 100, replace = withReplacement
+            positiveFiles, (trainSize//2) + 110, replace = withReplacement
         )]
         sampledNegative = [img for img in rand.choice(
-            negativeFiles, (trainSize//2) + 100, replace = withReplacement
+            negativeFiles, (trainSize//2) + 110, replace = withReplacement
         )]
 
         # Split out training and testing images to ensure there's no 
         # overlap between the set images
-        testPositive = sampledPositive[:100]
-        trainPositive = sampledPositive[100:]
-        testNegative = sampledNegative[:100]
-        trainNegative = sampledNegative[100:]
+        guiPositive = sampledPositive[:10]
+        testPositive = sampledPositive[10:110]
+        trainPositive = sampledPositive[110:]
+        guiNegative = sampledNegative[:10]
+        testNegative = sampledNegative[10:110]
+        trainNegative = sampledNegative[110:]
 
         # Randomise the image order
-        for set in (trainPositive, trainNegative, testPositive, testNegative):
-            rand.shuffle(set)
+        for set in (
+            trainPositive, trainNegative,
+            testPositive, testNegative, 
+            guiPositive, guiNegative
+        ): rand.shuffle(set)
 
         # Extract the sampled images, using new names to avoid similarly
         # named positive and negative samples overwriting each other
@@ -218,8 +237,19 @@ def createDataset(
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
                 img, os.path.join(testPath, ('N' + f'{index:06}' + ext))
-            )     
-    # Compress the newly extracted datasets
+            )
+        for index, img in enumerate(guiPositive):
+            _, ext = os.path.splitext(img.name)
+            tf._extract_member(
+                img, os.path.join(guiPath, ('P' + f'{index:06}' + ext))
+            ) 
+        for index, img in enumerate(guiNegative):
+            _, ext = os.path.splitext(img.name)
+            tf._extract_member(
+                img, os.path.join(guiPath, ('N' + f'{index:06}' + ext))
+            )
+    
+    # Compress the newly extracted datasets (not the GUI images)
     with tarfile.open(trainOutput + '.tar.gz', "w:gz") as tar:
         tar.add(trainPath, arcname = os.path.basename(trainPath))
     with tarfile.open(testOutput + '.tar.gz', "w:gz") as tar:
