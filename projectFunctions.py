@@ -484,7 +484,7 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
             computeHOGFeatures(
                 img, numberOfBins, cellDimensions, blockDimensions, 
                 normalisationTechnique, returnHOGImage = False
-            )[1] for img in imagePath
+            ) for img in imagePath
         ])
     except Exception as e:
         # Delete extracted directory before throwing error
