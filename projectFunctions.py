@@ -14,6 +14,12 @@ from sklearn.utils import shuffle
 from skimage import io, color, transform
 from skimage.feature import hog
 
+# Define possible image file extensions
+imageExts = {
+    '.png', '.jpg', '.jpeg', '.jfif', '.pjpeg', '.pjp', 
+    '.webp', '.pgm', '.avif', '.gif', '.svg', '.bmp', '.tiff'
+}
+
 """
 Function to extract images from a given tarfile, select a random sample
 to form training and testing sets, and recompress the new sets into 
@@ -72,15 +78,20 @@ def createDataset(
         negativeSamples = 'negative', trainOutput = 'train_set', 
         testOutput = 'test_set', withReplacement = False, randomSeed = None):
     # Validate parameters
-    if not isinstance(trainSize, int) or trainSize < 1:
+    if not os.path.isfile(tarfilePath):
+        raise FileNotFoundError(
+            f'Specified file at {tarfilePath} does not exist'
+        )
+    elif not isinstance(trainSize, int) or trainSize < 1:
         raise ValueError(
             f'trainSize should be a positive integer, was {trainSize}'
         )
-    if not isinstance(randomSeed, int):
-        raise ValueError(f'randomSeed should be an integer, was {randomSeed}')
+    elif not isinstance(randomSeed, int) or randomSeed < 0:
+        raise ValueError(
+            f'randomSeed should be a non-negative integer, was {randomSeed}'
+        )
     # Remove trailing slash from imagePath to prevent issues
     imagePathClean = imagePath if imagePath[-1] != '/' else imagePath[:-1]
-
 
     # Create working directories, throw error if they already exist
     try: os.mkdir(guiPath)
@@ -98,12 +109,6 @@ def createDataset(
         os.path.join(workingPath, testOutput),
     )
     for path in [trainPath, testPath]: os.mkdir(path)
-
-    # Define possible image file extensions
-    imageExts = {
-        '.png', '.jpg', '.jpeg', '.jfif', '.pjpeg', '.pjp', 
-        '.webp', '.pgm', '.avif', '.gif', '.svg', '.bmp', '.tiff'
-    }
 
     # Load the dataset
     with tarfile.open(tarfilePath, 'r') as tf:
@@ -276,7 +281,7 @@ Parameters:
     imagePath: string containing the name of/path to the image whose 
     HOG features will be calculated
 
-    numberOfOrientationBins: int representing the number of bins that 
+    numberOfBins: int representing the number of bins that 
     the gradient directions will be sorted into, a.k.a. the number of 
     unique orientations possible in the HOG features. Defaults to 9 bins
     per the project task statement
@@ -315,10 +320,40 @@ TODO: Check scikit-image hog source code to confirm it follows the
 report requirements in non-parameterised ways (gradient, block stride)
 """
 def computeHOGFeatures(
-        imagePath, numberOfOrientationBins = 9, cellDimensions = (8, 8),
+        imagePath, numberOfBins = 9, cellDimensions = (8, 8),
         blockDimensions = (2, 2), normalisationTechnique = 'L2-Hys', 
         returnHOGImage = False):
-    #TODO: input validation
+    # Validate parameters
+    if os.path.splitext(imagePath)[1] not in imageExts:
+        raise ValueError(f'Specified file at {imagePath} is not an image')
+    elif not os.path.isfile(imagePath):
+        raise FileNotFoundError(
+            f'Specified image at {imagePath} does not exist'
+        )
+    elif not isinstance(numberOfBins, int) or numberOfBins < 1:
+        raise ValueError(
+            f'Number of bins should be a positive integer, was {numberOfBins}'
+        )
+    elif list(map(type, cellDimensions)) != [int, int] or any(
+        i < 1 for i in cellDimensions
+    ):
+        raise ValueError(
+            'Cell dimensions should be a tuple containing '
+            f'2 positive integers, was {cellDimensions}'
+        )
+    elif list(map(type, blockDimensions)) != [int, int] or any(
+        i < 1 for i in blockDimensions
+    ):
+        raise ValueError(
+            'Block dimensions should be a tuple containing '
+            f'2 positive integers, was {blockDimensions}'
+        )
+    elif normalisationTechnique not in {'L1', 'L1-sqrt', 'L2', 'L2-Hys'}:
+        raise ValueError(
+            'Normalisation technique should be either "L1", "L1-sqrt",'
+            f' "L2", or "L2-Hys", was {normalisationTechnique}' 
+        )
+
     # Read the image
     img = io.imread(imagePath)
     
@@ -339,7 +374,7 @@ def computeHOGFeatures(
     if returnHOGImage:
         features, hogImage = hog(
             grayImg,
-            orientations = numberOfOrientationBins,
+            orientations = numberOfBins,
             pixels_per_cell = cellDimensions,
             cells_per_block = blockDimensions,
             block_norm = normalisationTechnique, 
@@ -351,7 +386,7 @@ def computeHOGFeatures(
     else:
         features = hog(
             grayImg,
-            orientations = numberOfOrientationBins,
+            orientations = numberOfBins,
             pixels_per_cell = cellDimensions,
             cells_per_block = blockDimensions,
             block_norm = normalisationTechnique, 
@@ -382,7 +417,7 @@ Parameters:
     randomSeed: int representing the NumPy seed for ensuring random 
     selection is reproducible if necessary
 
-    numberOfOrientationBins: int representing the number of bins that 
+    numberOfBins: int representing the number of bins that 
     the gradient directions will be sorted into, a.k.a. the number of 
     unique orientations possible in the HOG features. Defaults to 9 bins
     per the project task statement. Originates from computeHOGFeatures()
@@ -418,9 +453,18 @@ Outputs:
     determined via the file name
 """
 def formatDataset(tarfilePath, deleteDir = True, randomSeed = None, 
-        numberOfOrientationBins = 9, cellDimensions = (8, 8),
-        blockDimensions = (2, 2), normalisationTechnique = 'L2-Hys'):
-    #TODO: input validation
+        numberOfBins = 9, cellDimensions = (8, 8), blockDimensions = (2, 2), 
+        normalisationTechnique = 'L2-Hys'):
+    # Validate parameters
+    if not os.path.isfile(tarfilePath):
+        raise FileNotFoundError(
+            f'Specified file at {tarfilePath} does not exist'
+        )
+    elif not isinstance(randomSeed, int) or randomSeed < 0:
+        raise ValueError(
+            f'randomSeed should be a non-negative integer, was {randomSeed}'
+        )
+
     # Extract the training set
     with tarfile.open(tarfilePath, 'r:gz') as tar:
         # Extract images to directory
@@ -431,22 +475,31 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
             os.path.join('.', img.name) for img in tar.getmembers()[1:]
         ])
     # Compute HOG features
-    imageFeatures = np.array([
-        computeHOGFeatures(
-            img, numberOfOrientationBins, cellDimensions, blockDimensions, 
-            normalisationTechnique, returnHOGImage = False
-        )[1] for img in imagePath
-    ])
+    try:
+        imageFeatures = np.array([
+            computeHOGFeatures(
+                img, numberOfBins, cellDimensions, blockDimensions, 
+                normalisationTechnique, returnHOGImage = False
+            )[1] for img in imagePath
+        ])
+    except Exception as e:
+        # Delete extracted directory before throwing error
+        shutil.rmtree(imageDir)
+        raise e
+    
     # Get classification label of each image
     imageClass = np.char.startswith(
         imagePath, os.path.join(imageDir, 'P')
     )
+
     # Shuffle dataset
     imagePath, imageFeatures, imageClass = shuffle(
         imagePath, imageFeatures, imageClass, random_state=randomSeed
     )
+
     # Delete extracted directory before returning (if specified)
     if deleteDir: shutil.rmtree(imageDir)
+
     return imagePath, imageFeatures, imageClass
 
 
