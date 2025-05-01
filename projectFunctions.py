@@ -10,7 +10,6 @@ import os
 import shutil
 import tarfile
 import numpy as np
-import cv2
 from sklearn.utils import shuffle
 from skimage import io, color, transform
 from skimage.feature import hog
