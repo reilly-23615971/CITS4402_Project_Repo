@@ -86,7 +86,9 @@ def createDataset(
         raise ValueError(
             f'trainSize should be a positive integer, was {trainSize}'
         )
-    elif not isinstance(randomSeed, int) or randomSeed < 0:
+    elif randomSeed is not None and (
+        not isinstance(randomSeed, int) or randomSeed < 0
+    ):
         raise ValueError(
             f'randomSeed should be a non-negative integer, was {randomSeed}'
         )
@@ -460,7 +462,9 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
         raise FileNotFoundError(
             f'Specified file at {tarfilePath} does not exist'
         )
-    elif not isinstance(randomSeed, int) or randomSeed < 0:
+    elif randomSeed is not None and (
+        not isinstance(randomSeed, int) or randomSeed < 0
+    ):
         raise ValueError(
             f'randomSeed should be a non-negative integer, was {randomSeed}'
         )
