@@ -11,6 +11,7 @@ import shutil
 import tarfile
 import numpy as np
 from sklearn.utils import shuffle
+from sklearn.feature_extraction.image import extract_patches_2d
 from skimage import io, color, transform
 from skimage.feature import hog
 
@@ -19,6 +20,158 @@ imageExts = {
     '.png', '.jpg', '.jpeg', '.jfif', '.pjpeg', '.pjp', 
     '.webp', '.pgm', '.avif', '.gif', '.svg', '.bmp', '.tiff'
 }
+
+"""
+Function to generate several segments from a specified folder of images,
+for use in generating appropriately-sized non-human samples for the 
+image datasets
+
+Parameters:
+    imageFolder: string containing the name of/path to the folder 
+    containing the images that will be segmented
+
+    segmentPath: string containing the name of/path to the folder the 
+    program will create, which the segmented images will be saved into. 
+    The function will raise an error if this directory already exists; 
+    this is by design so as to avoid overwriting existing files
+
+    listFile: string containing the name of/path to a pre-made file 
+    containing the paths to every image that will be segmented. Can be 
+    set to None if no such file exists
+
+    imagesToSegment: int representing the number of images to select for
+    segmenting; defaults to 36 to match the minimum number of negative 
+    samples used by createDataset below
+
+    segmentsPerImage: int representing the number of segments to 
+    generate from each image; defaults to 10 to match the minimum number
+    of negative samples used by createDataset below
+
+    segmentHeight: int representing the height in pixels of the segments
+    to generate; defaults to 160 to match the positive samples of the 
+    INRIA dataset
+
+    segmentWidth: int representing the width in pixels of the segments
+    to generate; defaults to 96 to match the positive samples of the 
+    INRIA dataset
+
+    withReplacement: Boolean determining whether or not duplicate images
+    are possible in the images sampled for segmenting
+
+    randomSeed: int representing the NumPy seed for ensuring random 
+    selection is reproducible if necessary
+"""
+def segmentImages(
+        imageFolder, segmentPath = './SegmentedImages', listFile = None, 
+        imagesToSegment = 36, segmentsPerImage = 10, segmentHeight = 160, 
+        segmentWidth = 96, withReplacement = False, randomSeed = None):
+    # Validate parameters
+    if not os.path.isdir(imageFolder):
+        raise FileNotFoundError(
+            f'Specified directory at {imageFolder} does not exist'
+        )
+    elif not isinstance(imagesToSegment, int) or imagesToSegment < 1:
+        raise ValueError(
+            'imagesToSegment should be a positive '
+            f'integer, was {imagesToSegment}'
+        )
+    elif not isinstance(segmentsPerImage, int) or segmentsPerImage < 1:
+        raise ValueError(
+            'segmentsPerImage should be a positive '
+            f'integer, was {segmentsPerImage}'
+        )
+    elif not isinstance(segmentHeight, int) or segmentHeight < 1:
+        raise ValueError(
+            'segmentHeight should be a positive '
+            f'integer, was {segmentHeight}'
+        )
+    elif not isinstance(segmentWidth, int) or segmentWidth < 1:
+        raise ValueError(
+            'segmentWidth should be a positive '
+            f'integer, was {segmentWidth}'
+        )
+    elif randomSeed is not None and (
+        not isinstance(randomSeed, int) or randomSeed < 0
+    ):
+        raise ValueError(
+            f'randomSeed should be a non-negative integer, was {randomSeed}'
+        )
+
+    # Create folder for storing patches
+    try: os.mkdir(segmentPath)
+    except FileExistsError: raise FileExistsError((
+        f'Segment directory "{segmentPath}" already exists; move '
+        'or delete the existing directory before running again'
+    ))
+
+    # Get image list
+    if listFile:
+        with open(listFile) as file: imagePathList = file.read().splitlines()
+        if len(imagePathList) == 0:
+            shutil.rmtree(segmentPath)
+            raise FileNotFoundError((
+                'No images were found in the specified list. Check that'
+                f' the specified file "{listFile}" contains a list of '
+                'accurate paths to images.'
+            ))
+        elif not withReplacement and len(imagePathList) < imagesToSegment:
+            shutil.rmtree(segmentPath)
+            raise ValueError((
+                f'Function specified {imagesToSegment} images to sample'
+                f' for segmenting, but only {len(imagePathList)} were '
+                f'found. Check that the file "{listFile}" contains '
+                'enough valid paths to images, or set withReplacement ='
+                ' True to allow for duplicate images when sampling.'
+            ))
+    else:
+        imagePathList = [
+            img for img in os.listdir(imageFolder) if os.path.isfile(
+                os.path.join(imageFolder, img)
+            ) and os.path.splitext(img)[1] in imageExts
+        ]
+        if len(imagePathList) == 0:
+            shutil.rmtree(segmentPath)
+            raise FileNotFoundError((
+                'No images were found in the specified folder. Check '
+                f'that the specified directory "{imageFolder}" is '
+                'correct and contains images to sample.'
+            ))
+        elif not withReplacement and len(imagePathList) < imagesToSegment:
+            shutil.rmtree(segmentPath)
+            raise ValueError((
+                f'Function specified {imagesToSegment} images to sample'
+                f' for segmenting, but only {len(imagePathList)} were '
+                f'found. Check that the folder "{imageFolder}" contains '
+                'enough images, or set withReplacement = True to allow '
+                'for duplicate images when sampling.'
+            ))
+
+    # Set random state for reproducibility
+    rand = np.random.default_rng(randomSeed)
+    
+    # Sample images randomly
+    sampledImagePaths = [
+        (img for img in rand.choice(
+            imagePathList, imagesToSegment, replace = withReplacement
+        )) if imagesToSegment else imagePathList
+    ]
+    
+    # Segment images
+    imageData = io.imread_collection(sampledImagePaths, as_gray = True)
+    patchList = np.empty(
+        (imagesToSegment * segmentsPerImage, segmentHeight, segmentWidth)
+    )
+    for i in range(0, patchList.shape[0], segmentsPerImage):
+        patchList[i:i + segmentsPerImage] = extract_patches_2d(
+            imageData[i / segmentsPerImage], (segmentHeight, segmentWidth), 
+            max_patches = segmentsPerImage, random_state = randomSeed
+        )
+
+    # Save patches as images
+    for index, img in enumerate(patchList):
+        io.imsave(os.path.join(segmentPath, f'N{index:06}.png'), img)
+
+
 
 """
 Function to extract images from a given tarfile, select a random sample
@@ -103,8 +256,8 @@ def createDataset(
     ))
     try: os.mkdir(workingPath)
     except FileExistsError: raise FileExistsError((
-        f'Specified working directory "{workingPath}" already exists; use a '
-        'unique directory name instead'
+        f'Specified working directory "{workingPath}" already '
+        'exists; use a unique directory name instead'
     ))
     (trainPath, testPath) = (
         os.path.join(workingPath, trainOutput),
@@ -147,7 +300,7 @@ def createDataset(
         files = []
         for file in tf.getmembers():
             filePath, fileExtension = os.path.splitext(file.name)
-            if (filePath.startswith(imagePathClean + '/') and 
+            if (filePath.startswith(f'{imagePathClean}/') and 
                 fileExtension in imageExts): 
                 files.append(file)
 
@@ -236,38 +389,38 @@ def createDataset(
         for index, img in enumerate(trainPositive):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(trainPath, ('P' + f'{index:06}' + ext))
+                img, os.path.join(trainPath, f'P{index:06}{ext}')
             )
         for index, img in enumerate(trainNegative):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(trainPath, ('N' + f'{index:06}' + ext))
+                img, os.path.join(trainPath, f'N{index:06}{ext}')
             )
         for index, img in enumerate(testPositive):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(testPath, ('P' + f'{index:06}' + ext))
+                img, os.path.join(testPath, f'P{index:06}{ext}')
             ) 
         for index, img in enumerate(testNegative):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(testPath, ('N' + f'{index:06}' + ext))
+                img, os.path.join(testPath, f'N{index:06}{ext}')
             )
         for index, img in enumerate(guiPositive):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(guiPath, ('P' + f'{index:06}' + ext))
+                img, os.path.join(guiPath, f'P{index:06}{ext}')
             ) 
         for index, img in enumerate(guiNegative):
             _, ext = os.path.splitext(img.name)
             tf._extract_member(
-                img, os.path.join(guiPath, ('N' + f'{index:06}' + ext))
+                img, os.path.join(guiPath, f'N{index:06}{ext}')
             )
     
     # Compress the newly extracted datasets (not the GUI images)
-    with tarfile.open(trainOutput + '.tar.gz', "w:gz") as tar:
+    with tarfile.open(f'{trainOutput}.tar.gz', "w:gz") as tar:
         tar.add(trainPath, arcname = os.path.basename(trainPath))
-    with tarfile.open(testOutput + '.tar.gz', "w:gz") as tar:
+    with tarfile.open(f'{testOutput}.tar.gz', "w:gz") as tar:
         tar.add(testPath, arcname = os.path.basename(testPath))
 
     # Delete the working directory now that sets have been compiled
@@ -511,6 +664,17 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
 '''
 # Run createDataset to generate Daimler datasets
 createDataset(
+    'DC-ped-dataset_base.tar', imagePath = '1', 
+    positiveSamples = 'ped_examples', negativeSamples = 'non-ped_examples', 
+    randomSeed = 42
+)
+'''
+
+
+
+'''
+# Run segmentImages to generate negative INRIA samples
+segmentImages(
     'DC-ped-dataset_base.tar', imagePath = '1', 
     positiveSamples = 'ped_examples', negativeSamples = 'non-ped_examples', 
     randomSeed = 42
