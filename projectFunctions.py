@@ -1,11 +1,11 @@
 # CITS4402 Group Project
 # Group Members:
-# Felix Mavrodoglu (23720305)
-# Jalil Inayat-Hussain (22751096)
-# Reilly Evans (23615971)
+#   Felix Mavrodoglu (23720305)
+#   Jalil Inayat-Hussain (22751096)
+#   Reilly Evans (23615971)
 # Functions used to generate datasets, extract features and fit models
 
-# Imports
+# Imports used by our functions
 import os
 import shutil
 import tarfile
@@ -17,7 +17,7 @@ from skimage.color import rgb2gray
 from skimage.transform import resize
 from skimage.feature import hog
 
-# Define possible image file extensions
+# Define possible image file extensions as a constant
 imageExts = {
     '.png', '.jpg', '.jpeg', '.jfif', '.pjpeg', '.pjp', 
     '.webp', '.pgm', '.avif', '.gif', '.svg', '.bmp', '.tiff'
@@ -35,7 +35,9 @@ Parameters:
     segmentPath: string containing the name of/path to the folder the 
     program will create, which the segmented images will be saved into. 
     The function will raise an error if this directory already exists; 
-    this is by design so as to avoid overwriting existing files
+    this is by design so as to avoid overwriting existing files or 
+    mixing the dataset contents with remnants from previous executions 
+    of this function
 
     listFile: string containing the name of/path to a pre-made file 
     containing the names of/paths to every image that will be segmented.
@@ -73,46 +75,47 @@ def segmentImages(
     # Validate parameters
     if not os.path.isdir(imageFolder):
         raise FileNotFoundError(
-            f'Specified directory at {imageFolder} does not exist'
+            f'The specified directory at {imageFolder} does not exist.'
         )
     if listFile is not None and not os.path.isfile(listFile):
         raise FileNotFoundError(
-            f'Specified path list file at {listFile} does not exist'
+            f'The specified path list file at {listFile} does not exist.'
         )
-    elif (imagesToSegment is not None and 
-          not isinstance(imagesToSegment, int) or imagesToSegment < 1):
+    if imagesToSegment is not None and (
+        not isinstance(imagesToSegment, int) or imagesToSegment < 1
+    ):
         raise ValueError(
-            'imagesToSegment should be a positive '
-            f'integer or None, was {imagesToSegment}'
+            'imagesToSegment should be a positive integer or None, was '
+            f'{imagesToSegment}.'
         )
-    elif not isinstance(segmentsPerImage, int) or segmentsPerImage < 1:
+    if not isinstance(segmentsPerImage, int) or segmentsPerImage < 1:
         raise ValueError(
             'segmentsPerImage should be a positive integer, was '
-            f'{segmentsPerImage}'
+            f'{segmentsPerImage}.'
         )
-    elif not isinstance(segmentHeight, int) or segmentHeight < 1:
+    if not isinstance(segmentHeight, int) or segmentHeight < 1:
         raise ValueError(
-            f'segmentHeight should be a positive integer, was {segmentHeight}'
+            f'segmentHeight should be a positive integer, was {segmentHeight}.'
         )
-    elif not isinstance(segmentWidth, int) or segmentWidth < 1:
+    if not isinstance(segmentWidth, int) or segmentWidth < 1:
         raise ValueError(
-            f'segmentWidth should be a positive integer, was {segmentWidth}'
+            f'segmentWidth should be a positive integer, was {segmentWidth}.'
         )
-    elif randomSeed is not None and (
+    if randomSeed is not None and (
         not isinstance(randomSeed, int) or randomSeed < 0
     ):
         raise ValueError(
-            f'randomSeed should be a non-negative integer, was {randomSeed}'
+            f'randomSeed should be a non-negative integer, was {randomSeed}.'
         )
 
-    # Create folder for storing patches
+    # Create folder for storing generated segments
     try: os.mkdir(segmentPath)
     except FileExistsError: raise FileExistsError((
-        f'Segment directory "{segmentPath}" already exists; move '
-        'or delete the existing directory before running again'
+        f'The segment directory "{segmentPath}" already exists. Move or'
+        ' delete the existing directory, or select a different one.'
     ))
 
-    # Get image list
+    # Get list of images to generate segments from
     if listFile: 
         # Get file paths from specified list file
         with open(listFile) as file: imagePathOut = file.read().splitlines()
@@ -133,7 +136,9 @@ def segmentImages(
                 'a list of newline-separated paths to images, and that '
                 'the paths in said list are accurate.'
             ))
-        elif not withReplacement and len(imagePathList) < imagesToSegment:
+        elif imagesToSegment is not None and (
+            not withReplacement and len(imagePathList) < imagesToSegment
+        ):
             shutil.rmtree(segmentPath)
             raise ValueError((
                 f'Function specifies {imagesToSegment} images to sample'
@@ -155,11 +160,13 @@ def segmentImages(
         if len(imagePathList) == 0:
             shutil.rmtree(segmentPath)
             raise FileNotFoundError((
-                'No valid images were found in the specified folder. Check '
-                f'that the specified directory "{imageFolder}" is '
-                'correct and contains valid images to sample.'
+                'No valid images were found in the specified folder. '
+                f'Check that the specified directory "{imageFolder}" is'
+                ' correct and contains valid images to sample.'
             ))
-        elif not withReplacement and len(imagePathList) < imagesToSegment:
+        elif imagesToSegment is not None and (
+            not withReplacement and len(imagePathList) < imagesToSegment
+        ):
             shutil.rmtree(segmentPath)
             raise ValueError((
                 f'Function specifies {imagesToSegment} images to sample'
@@ -170,58 +177,62 @@ def segmentImages(
                 'when sampling.'
             ))
 
-    # Set random state for reproducibility
-    rand = np.random.default_rng(randomSeed)
+    # Set random state for reproducibility if segmenting random images
+    if imagesToSegment: rand = np.random.default_rng(randomSeed)
     
-    # Sample images randomly
+    # Sample images randomly if specific number is specified
     sampledImagePaths = [img for img in rand.choice(
-            imagePathList, imagesToSegment, replace = withReplacement
+        imagePathList, imagesToSegment, replace = withReplacement
     )] if imagesToSegment else imagePathList
     
-    # Segment images
+    # Load the images
     imageData = []
     for img in sampledImagePaths:
         imageData.append(
             imread(os.path.join(imageFolder, img), as_gray = True)
         )
 
-    # Throw error if segment size is too big for one of the images
+    # Throw error if segment size is too big for any of the images
     if min([img.shape[0] for img in imageData]) < segmentHeight:
         shutil.rmtree(segmentPath)
         raise ValueError((
-            f'Specified segment height "{segmentHeight}" is too large '
-            'for at least one of the selected images. Lower the value '
-            'of segmentHeight or remove any images less than '
+            f'The specified segment height "{segmentHeight}" is too '
+            'large for at least one of the selected images. Lower the '
+            'value of segmentHeight or remove any images less than '
             f'{segmentHeight} pixels tall from "{imageFolder}".'
         ))
     if min([img.shape[1] for img in imageData]) < segmentWidth:
         shutil.rmtree(segmentPath)
         raise ValueError((
-            f'Specified segment width "{segmentWidth}" is too large for'
-            ' at least one of the selected images. Lower the value of '
-            'segmentWidth or remove any images less than '
+            f'The specified segment width "{segmentWidth}" is too large'
+            ' for at least one of the selected images. Lower the value '
+            'of segmentWidth or remove any images less than '
             f'{segmentWidth} pixels wide from "{imageFolder}".'
         ))
 
-    patchList = np.empty(
-        (imagesToSegment * segmentsPerImage, segmentHeight, segmentWidth)
-    )
-    try:
-        for i in range(0, patchList.shape[0], segmentsPerImage):
-            patchList[i:i + segmentsPerImage] = extract_patches_2d(
-                imageData[i // segmentsPerImage], (segmentHeight, segmentWidth), 
-                max_patches = segmentsPerImage, random_state = randomSeed
-            )
-    except Exception as e:
-        # Delete segment directory before letting scikit throw error
-        shutil.rmtree(segmentPath)
-        raise e
+    # Initialise array to store segments
+    patchList = np.empty((
+        (
+            imagesToSegment * segmentsPerImage if imagesToSegment 
+            else len(imageData) * segmentsPerImage
+        ), segmentHeight, segmentWidth
+    ))
 
-    # Save patches as PNG images with procedural names
+    # Generate segments
+    for i in range(0, patchList.shape[0], segmentsPerImage):
+        patchList[i:i + segmentsPerImage] = extract_patches_2d(
+            imageData[i // segmentsPerImage], 
+            (segmentHeight, segmentWidth), 
+            max_patches = segmentsPerImage, 
+            random_state = randomSeed
+        )
+
+    # Save segments as PNG images with procedural names
     for index, img in enumerate(patchList):
         imsave(
             os.path.join(segmentPath, f'N{index:06}.png'), 
-            (65535 * img).astype(np.uint16) # needed to save as PNG
+            (65535 * img).astype(np.uint16), # needed to save as PNG
+            check_contrast = False
         )
 
 
@@ -229,7 +240,7 @@ def segmentImages(
 """
 Function to extract images from a given tarfile, select a random sample
 to form training and testing sets, and recompress the new sets into 
-their own tarfiles
+their own tarfiles (plus a folder with images for GUI testing)
 
 
 Parameters:
@@ -239,11 +250,15 @@ Parameters:
     trainSize: int representing the number of images to select for the 
     training set; defaults to 500 per the project task statement
 
+    testSize: int representing the number of images to select for the 
+    testing set; defaults to 200 per the project task statement
+
     workingPath: string containing the name of/path to the temporary 
-    folder where the tarfile's extracted images for the training/testing
-    sets will go while the function is running. The function will raise 
-    an error if this directory already exists; this is by design so as 
-    to avoid overwriting existing folders
+    folder where the tarfile's extracted images for the datasets will go
+    while the function is running. The function will raise an error if 
+    this directory already exists; this is by design so as to avoid 
+    overwriting existing folders or mixing the dataset contents with 
+    remnants from previous executions of this function
 
     imagePath: string containing the name of/path to the directory 
     within the tarfile to select and extract images from. This directory
@@ -278,7 +293,7 @@ The testing set will always have 100 positive and 100 negative images in
 order to follow the project task statement
 """
 def createDataset(
-        tarfilePath, trainSize = 500, 
+        tarfilePath, trainSize = 500, testSize = 200,
         workingPath = './WorkingData',  imagePath = '', 
         guiPath = './Testing Images', positiveSamples = 'positive', 
         negativeSamples = 'negative', trainOutput = 'train_set', 
@@ -286,31 +301,39 @@ def createDataset(
     # Validate parameters
     if not os.path.isfile(tarfilePath):
         raise FileNotFoundError(
-            f'Specified tarfile at {tarfilePath} does not exist'
+            f'The specified tarfile at {tarfilePath} does not exist.'
         )
-    elif not isinstance(trainSize, int) or trainSize < 1:
+    if not isinstance(trainSize, int) or trainSize < 1:
         raise ValueError(
-            f'trainSize should be a positive integer, was {trainSize}'
+            f'trainSize should be a positive integer, was {trainSize}.'
         )
-    elif randomSeed is not None and (
+    if not isinstance(testSize, int) or testSize < 1:
+        raise ValueError(
+            f'testSize should be a positive integer, was {testSize}.'
+        )
+    if randomSeed is not None and (
         not isinstance(randomSeed, int) or randomSeed < 0
     ):
         raise ValueError(
-            f'randomSeed should be a non-negative integer, was {randomSeed}'
+            f'randomSeed should be a non-negative integer, was {randomSeed}.'
         )
-    # Remove trailing slash from imagePath to prevent issues
+    
+    # Remove trailing slash from imagePath to prevent issues with the 
+    # tarfile functions not recognising the path
     imagePathClean = imagePath if imagePath[-1] != '/' else imagePath[:-1]
 
-    # Create working directories, throw error if they already exist
+    # Create working directories
     try: os.mkdir(guiPath)
     except FileExistsError: raise FileExistsError((
-        f'GUI test image directory "Testing Images" already exists; '
-        'move or delete the existing directory before running again'
+        f'The specified GUI test image directory "{guiPath}" already '
+        'exists. Move or delete the existing directory, or select a '
+        'different one.'
     ))
     try: os.mkdir(workingPath)
     except FileExistsError: raise FileExistsError((
-        f'Specified working directory "{workingPath}" already '
-        'exists; use a unique directory name instead'
+        f'The specified working directory "{workingPath}" already '
+        'exists. Move or delete the existing directory, or select a '
+        'different one.'
     ))
     (trainPath, testPath) = (
         os.path.join(workingPath, trainOutput),
@@ -318,7 +341,7 @@ def createDataset(
     )
     for path in [trainPath, testPath]: os.mkdir(path)
 
-    # Load the dataset
+    # Load the dataset from the tarfile
     with tarfile.open(tarfilePath, 'r') as tf:
         # Check that the specified folders are in the tarfile
         fileNames = tf.getnames()
@@ -329,27 +352,27 @@ def createDataset(
             shutil.rmtree(workingPath)
             shutil.rmtree(guiPath)
             raise FileNotFoundError((
-                f'Specified image directory "{imagePathClean}" not found in '
-                f'tarfile "{tarfilePath}"'
+                f'The specified image directory "{imagePathClean}" was '
+                f'not found in tarfile "{tarfilePath}".'
             ))
-        elif os.path.join(imagePathClean, positiveSamples) not in fileNames:
+        if os.path.join(imagePathClean, positiveSamples) not in fileNames:
             shutil.rmtree(workingPath)
             shutil.rmtree(guiPath)
             raise FileNotFoundError((
-                f'Specified positive sample directory "{positiveSamples}" not'
-                f' found in image directory "{imagePathClean}" within '
-                f'tarfile "{tarfilePath}"'
+                'The specified positive sample directory '
+                f'"{positiveSamples}" was not found in image directory '
+                f'"{imagePathClean}" within tarfile "{tarfilePath}".'
             ))
-        elif os.path.join(imagePathClean, negativeSamples) not in fileNames:
+        if os.path.join(imagePathClean, negativeSamples) not in fileNames:
             shutil.rmtree(workingPath)
             shutil.rmtree(guiPath)
             raise FileNotFoundError((
-                f'Specified negative sample directory "{negativeSamples}" not'
-                f' found in image directory "{imagePathClean}" within '
-                f'tarfile "{tarfilePath}"'
+                'The specified negative sample directory '
+                f'"{negativeSamples}" was not found in image directory '
+                f'"{imagePathClean}" within tarfile "{tarfilePath}".'
             ))
         
-        # Get the images in the specified folder
+        # Get the images from the specified folder
         files = []
         for file in tf.getmembers():
             filePath, fileExtension = os.path.splitext(file.name)
@@ -375,100 +398,86 @@ def createDataset(
                 'No positive samples were found in the tarfile. '
                 'Check that the specified directory '
                 f'"{os.path.join(imagePathClean, positiveSamples)}" is '
-                f'correct and that the specified tarfile "{tarfilePath}" '
-                'contains the desired images.'
+                'correct and that the specified tarfile '
+                f'"{tarfilePath}" contains the desired images.'
             ))
-        elif not withReplacement and len(positiveFiles) < (trainSize//2) + 110:
+        elif not withReplacement and (
+            len(positiveFiles) < (trainSize // 2) + (testSize // 2) + 10
+        ):
             shutil.rmtree(workingPath)
             shutil.rmtree(guiPath)
             raise ValueError((
-                f'Training and testing datasets require {(trainSize//2) + 110}'
-                f' positive samples total, but only {len(positiveFiles)} were '
-                f'found. Check that the tarfile "{tarfilePath}" contains '
-                'enough images, or set withReplacement = True to allow for '
-                'duplicate samples in the datasets.'
+                'The model datasets require '
+                f'{(trainSize // 2) + (testSize // 2) + 10} positive '
+                f'samples total, but only {len(positiveFiles)} such '
+                'images were located. Check that the tarfile '
+                f'"{tarfilePath}" contains enough images, or set '
+                'withReplacement = True to allow for duplicate samples '
+                'in the datasets.'
             ))
-        elif len(negativeFiles) == 0:
+        if len(negativeFiles) == 0:
             shutil.rmtree(workingPath)
             shutil.rmtree(guiPath)
             raise FileNotFoundError((
                 'No negative samples were found in the tarfile. '
                 'Check that the specified directory '
                 f'"{os.path.join(imagePathClean, negativeSamples)}" is '
-                f'correct and that the specified tarfile "{tarfilePath}" '
-                'contains the desired images.'
+                f'correct and that the specified tarfile '
+                f'"{tarfilePath}" contains the desired images.'
             ))
-        elif not withReplacement and len(negativeFiles) < (trainSize//2) + 110:
+        elif not withReplacement and (
+            len(negativeFiles) < (trainSize // 2) + (testSize // 2) + 10
+        ):
             shutil.rmtree(workingPath)
             shutil.rmtree(guiPath)
             raise ValueError((
-                f'Training and testing datasets require {(trainSize//2) + 110}'
-                f' negative samples total, but only {len(negativeFiles)} were '
-                f'found. Check that the tarfile "{tarfilePath}" contains '
-                'enough images, or set withReplacement = True to allow for '
-                'duplicate samples in the datasets.'
+                f'The model datasets require '
+                f'{(trainSize // 2) + (testSize // 2) + 10} negative '
+                f'samples total, but only {len(negativeFiles)} such '
+                'images were located. Check that the tarfile '
+                f'"{tarfilePath}" contains enough images, or set '
+                'withReplacement = True to allow for duplicate samples '
+                'in the datasets.'
             ))
         
         # Set random state for reproducibility
         rand = np.random.default_rng(randomSeed)
         
-        # Randomly select enough files for training and testing sets
+        # Randomly select enough files for the datasets
         sampledPositive = [img for img in rand.choice(
-            positiveFiles, (trainSize//2) + 110, replace = withReplacement
+            positiveFiles, (trainSize // 2) + (testSize // 2) + 10, 
+            replace = withReplacement
         )]
         sampledNegative = [img for img in rand.choice(
-            negativeFiles, (trainSize//2) + 110, replace = withReplacement
+            negativeFiles, (trainSize // 2) + (testSize // 2) + 10, 
+            replace = withReplacement
         )]
 
-        # Split out training and testing images to ensure there's no 
-        # overlap between the set images
-        guiPositive = sampledPositive[:10]
-        testPositive = sampledPositive[10:110]
-        trainPositive = sampledPositive[110:]
-        guiNegative = sampledNegative[:10]
-        testNegative = sampledNegative[10:110]
-        trainNegative = sampledNegative[110:]
-
-        # Randomise the image order
-        for set in (
-            trainPositive, trainNegative,
-            testPositive, testNegative, 
-            guiPositive, guiNegative
-        ): rand.shuffle(set)
+        # Split out images for each dataset
+        guiPositive = tuple(sampledPositive[:10])
+        testPositive = tuple(sampledPositive[10:(testSize // 2) + 10])
+        trainPositive = tuple(sampledPositive[(testSize // 2) + 10:])
+        guiNegative = tuple(sampledNegative[:10])
+        testNegative = tuple(sampledNegative[10:(testSize // 2) + 10])
+        trainNegative = tuple(sampledNegative[(testSize // 2) + 10:])
 
         # Extract the sampled images, using new names to avoid similarly
         # named positive and negative samples overwriting each other
         # First letter of name indicates if sample is positive/negative
-        for index, img in enumerate(trainPositive):
-            _, ext = os.path.splitext(img.name)
-            tf._extract_member(
-                img, os.path.join(trainPath, f'P{index:06}{ext}')
-            )
-        for index, img in enumerate(trainNegative):
-            _, ext = os.path.splitext(img.name)
-            tf._extract_member(
-                img, os.path.join(trainPath, f'N{index:06}{ext}')
-            )
-        for index, img in enumerate(testPositive):
-            _, ext = os.path.splitext(img.name)
-            tf._extract_member(
-                img, os.path.join(testPath, f'P{index:06}{ext}')
-            ) 
-        for index, img in enumerate(testNegative):
-            _, ext = os.path.splitext(img.name)
-            tf._extract_member(
-                img, os.path.join(testPath, f'N{index:06}{ext}')
-            )
-        for index, img in enumerate(guiPositive):
-            _, ext = os.path.splitext(img.name)
-            tf._extract_member(
-                img, os.path.join(guiPath, f'P{index:06}{ext}')
-            ) 
-        for index, img in enumerate(guiNegative):
-            _, ext = os.path.splitext(img.name)
-            tf._extract_member(
-                img, os.path.join(guiPath, f'N{index:06}{ext}')
-            )
+        setVars = {
+            trainPositive: (trainPath, 'P'), trainNegative: (trainPath, 'N'),
+            testPositive: (testPath, 'P'), testNegative: (testPath, 'N'),
+            guiPositive: (guiPath, 'P'), guiNegative: (guiPath, 'N'),
+        }
+        for set in setVars.keys():
+            setPath, setLabel = setVars[set]
+            for index, img in enumerate(set):
+                tf._extract_member(
+                    img, os.path.join(
+                        setPath, 
+                        f'{setLabel}{index:06}{os.path.splitext(img.name)[1]}'
+                    )
+                )
     
     # Compress the newly extracted datasets (not the GUI images)
     with tarfile.open(f'{trainOutput}.tar.gz', "w:gz") as tar:
@@ -529,34 +538,34 @@ def computeHOGFeatures(
         blockDimensions = (2, 2), normalisationTechnique = 'L2-Hys', 
         returnHOGImage = False):
     # Validate parameters
-    if os.path.splitext(imagePath)[1] not in imageExts:
-        raise ValueError(f'Specified file at {imagePath} is not an image')
-    elif not os.path.isfile(imagePath):
+    if not os.path.isfile(imagePath):
         raise FileNotFoundError(
-            f'Specified image at {imagePath} does not exist'
+            f'The specified image at {imagePath} does not exist.'
         )
-    elif not isinstance(numberOfBins, int) or numberOfBins < 1:
+    elif os.path.splitext(imagePath)[1] not in imageExts:
+        raise ValueError(f'The specified file at {imagePath} is not an image.')
+    if not isinstance(numberOfBins, int) or numberOfBins < 1:
         raise ValueError(
-            f'Number of bins should be a positive integer, was {numberOfBins}'
+            f'numberOfBins should be a positive integer, was {numberOfBins}.'
         )
-    elif list(map(type, cellDimensions)) != [int, int] or any(
+    if list(map(type, cellDimensions)) != [int, int] or any(
         i < 1 for i in cellDimensions
     ):
         raise ValueError(
-            'Cell dimensions should be a tuple containing '
-            f'2 positive integers, was {cellDimensions}'
+            'cellDimensions should be a tuple containing 2 positive '
+            f'integers, was {cellDimensions}.'
         )
-    elif list(map(type, blockDimensions)) != [int, int] or any(
+    if list(map(type, blockDimensions)) != [int, int] or any(
         i < 1 for i in blockDimensions
     ):
         raise ValueError(
-            'Block dimensions should be a tuple containing '
-            f'2 positive integers, was {blockDimensions}'
+            'blockDimensions should be a tuple containing 2 positive '
+            f'integers, was {blockDimensions}.'
         )
-    elif normalisationTechnique not in {'L1', 'L1-sqrt', 'L2', 'L2-Hys'}:
+    if normalisationTechnique not in {'L1', 'L1-sqrt', 'L2', 'L2-Hys'}:
         raise ValueError(
-            'Normalisation technique should be either "L1", "L1-sqrt",'
-            f' "L2", or "L2-Hys", was {normalisationTechnique}' 
+            'normalisationTechnique should be either "L1", "L1-sqrt",'
+            f' "L2", or "L2-Hys"; was {normalisationTechnique}.' 
         )
 
     # Read the image
@@ -569,8 +578,7 @@ def computeHOGFeatures(
     # Convert image to grayscale (handle both RGB and RGBA images)
     if len(img.shape) > 2:
         # For RGBA images (4 channels), remove the alpha channel first
-        if img.shape[2] == 4:
-            img = img[:, :, :3]
+        if img.shape[2] == 4: img = img[:, :, :3]
         grayImg = rgb2gray(img)
     else:
         grayImg = img
@@ -582,7 +590,7 @@ def computeHOGFeatures(
             orientations = numberOfBins,
             pixels_per_cell = cellDimensions,
             cells_per_block = blockDimensions,
-            block_norm = normalisationTechnique, 
+            block_norm = normalisationTechnique,
             visualize = True,
             feature_vector = True,        # Return features as vector
             transform_sqrt = False,       # No gamma correction
@@ -594,10 +602,10 @@ def computeHOGFeatures(
             orientations = numberOfBins,
             pixels_per_cell = cellDimensions,
             cells_per_block = blockDimensions,
-            block_norm = normalisationTechnique, 
+            block_norm = normalisationTechnique,
             visualize = False,
-            feature_vector = True,        # Return features as vector
-            transform_sqrt = False,       # No gamma correction
+            feature_vector = True,
+            transform_sqrt = False,
         )
         return features
 
@@ -647,13 +655,14 @@ Parameters:
 
 
 Outputs:
-    imagePath: 1D NumPy array of strings corresponding to the file paths
-    to each image in the dataset. Useful as an index value for the data
+    imagePaths: 1D NumPy array of strings corresponding to the file 
+    paths to each image in the dataset. Useful as an index value for the
+    elements of the dataset
 
     imageFeatures: Nested Numpy array of numeric values representing the
     HOG features generated from each image
 
-    imageClass: 1D NumPy array of Booleans indicating each image was a 
+    imageClasses: 1D NumPy array of Booleans indicating each image was a
     positive/human sample (True) or a negative/non-human sample (False),
     determined via the file name
 """
@@ -663,31 +672,33 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
     # Validate parameters
     if not os.path.isfile(tarfilePath):
         raise FileNotFoundError(
-            f'Specified file at {tarfilePath} does not exist'
+            f'The specified file at {tarfilePath} does not exist.'
         )
-    elif randomSeed is not None and (
+    if randomSeed is not None and (
         not isinstance(randomSeed, int) or randomSeed < 0
     ):
         raise ValueError(
-            f'randomSeed should be a non-negative integer, was {randomSeed}'
+            f'randomSeed should be a non-negative integer, was {randomSeed}.'
         )
 
-    # Extract the training set
+    # Extract the images from the desired tarfile
     with tarfile.open(tarfilePath, 'r:gz') as tar:
-        # Extract images to directory
+        # Extract the images, recording the directory they are saved in
         imageDir = os.path.join('.', tar.getmembers()[0].name)
         tar.extractall()
+
         # Get list of image file paths
-        imagePath = np.array([
+        imagePaths = np.array([
             os.path.join('.', img.name) for img in tar.getmembers()[1:]
         ])
-    # Compute HOG features
+    
+    # Compute HOG features with images
     try:
         imageFeatures = np.array([
             computeHOGFeatures(
                 img, numberOfBins, cellDimensions, blockDimensions, 
                 normalisationTechnique, returnHOGImage = False
-            ) for img in imagePath
+            ) for img in imagePaths
         ])
     except Exception as e:
         # Delete extracted directory before throwing error
@@ -695,41 +706,64 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
         raise e
     
     # Get classification label of each image
-    imageClass = np.char.startswith(
-        imagePath, os.path.join(imageDir, 'P')
+    imageClasses = np.char.startswith(
+        imagePaths, os.path.join(imageDir, 'P')
     )
 
     # Shuffle dataset
-    imagePath, imageFeatures, imageClass = shuffle(
-        imagePath, imageFeatures, imageClass, random_state=randomSeed
+    imagePaths, imageFeatures, imageClasses = shuffle(
+        imagePaths, imageFeatures, imageClasses, random_state = randomSeed
     )
 
     # Delete extracted directory before returning (if specified)
     if deleteDir: shutil.rmtree(imageDir)
 
-    return imagePath, imageFeatures, imageClass
+    # Return tuple of paths, features and labels
+    return imagePaths, imageFeatures, imageClasses
 
 
 
+# Commented-out function calls for testing
 '''
-# Run createDataset to generate Daimler datasets
-createDataset(
-    './ExampleSets/DC-ped-dataset_base.tar', imagePath = '1', 
-    positiveSamples = 'ped_examples', negativeSamples = 'non-ped_examples', 
-    randomSeed = 42
-)
-'''
-
-
-
 # Run segmentImages to generate negative INRIA samples
 segmentImages(
     './ExampleSets/InriaNonHuman', 
     #segmentPath = './SegmentedImages2',
     #listFile = './ExampleSets/negNames.lst', 
-    #imagesToSegment = 90,
+    imagesToSegment = None,
     #segmentsPerImage = 100,
     #segmentHeight = 250,
     #segmentWidth = 250,
     randomSeed = 42
 )
+'''
+
+'''
+# Run createDataset to generate Daimler datasets
+createDataset(
+    './ExampleSets/DC-ped-dataset_base.tar', 
+    #trainSize = 1000,
+    #workingPath = './test',
+    imagePath = '1', 
+    #guiPath = './Images for GUI'
+    positiveSamples = 'ped_examples', 
+    negativeSamples = 'non-ped_examples', 
+    #trainOutput = './trainingSet',
+    #testOutput = './testingSet',
+    #withReplacement = True,
+    randomSeed = 42
+)
+'''
+
+'''
+# Run formatDataset to get HOG features
+formatDataset(
+    './ExampleSets/train_set.tar.gz',
+    #deleteDir = True,
+    randomSeed = 42,
+    #numberOfBins = 9,
+    #cellDimensions = (8, 8),
+    #blockDimensions = (2, 2),
+    #normalisationTechnique = 'L2-Hys'
+)
+'''
