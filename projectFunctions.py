@@ -12,7 +12,9 @@ import tarfile
 import numpy as np
 from sklearn.utils import shuffle
 from sklearn.feature_extraction.image import extract_patches_2d
-from skimage import io, color, transform
+from skimage.io import imread, imsave
+from skimage.color import rgb2gray
+from skimage.transform import resize
 from skimage.feature import hog
 
 # Define possible image file extensions
@@ -36,16 +38,19 @@ Parameters:
     this is by design so as to avoid overwriting existing files
 
     listFile: string containing the name of/path to a pre-made file 
-    containing the paths to every image that will be segmented. Can be 
-    set to None if no such file exists
+    containing the names of/paths to every image that will be segmented.
+    Paths should be relative to imageFolder; images within imageFolder 
+    directly should be listed as just the name. Can be set to None to 
+    instead search imageFolder for valid image files directly
 
     imagesToSegment: int representing the number of images to select for
-    segmenting; defaults to 36 to match the minimum number of negative 
-    samples used by createDataset below
+    segmenting; defaults to 36 to match the default minimum number of 
+    negative samples used by createDataset below. Can be set to None to 
+    segment every image the function finds
 
     segmentsPerImage: int representing the number of segments to 
-    generate from each image; defaults to 10 to match the minimum number
-    of negative samples used by createDataset below
+    generate from each image; defaults to 10 to match the default 
+    minimum number of negative samples used by createDataset below
 
     segmentHeight: int representing the height in pixels of the segments
     to generate; defaults to 160 to match the positive samples of the 
@@ -70,25 +75,28 @@ def segmentImages(
         raise FileNotFoundError(
             f'Specified directory at {imageFolder} does not exist'
         )
-    elif not isinstance(imagesToSegment, int) or imagesToSegment < 1:
+    if listFile is not None and not os.path.isfile(listFile):
+        raise FileNotFoundError(
+            f'Specified path list file at {listFile} does not exist'
+        )
+    elif (imagesToSegment is not None and 
+          not isinstance(imagesToSegment, int) or imagesToSegment < 1):
         raise ValueError(
             'imagesToSegment should be a positive '
-            f'integer, was {imagesToSegment}'
+            f'integer or None, was {imagesToSegment}'
         )
     elif not isinstance(segmentsPerImage, int) or segmentsPerImage < 1:
         raise ValueError(
-            'segmentsPerImage should be a positive '
-            f'integer, was {segmentsPerImage}'
+            'segmentsPerImage should be a positive integer, was '
+            f'{segmentsPerImage}'
         )
     elif not isinstance(segmentHeight, int) or segmentHeight < 1:
         raise ValueError(
-            'segmentHeight should be a positive '
-            f'integer, was {segmentHeight}'
+            f'segmentHeight should be a positive integer, was {segmentHeight}'
         )
     elif not isinstance(segmentWidth, int) or segmentWidth < 1:
         raise ValueError(
-            'segmentWidth should be a positive '
-            f'integer, was {segmentWidth}'
+            f'segmentWidth should be a positive integer, was {segmentWidth}'
         )
     elif randomSeed is not None and (
         not isinstance(randomSeed, int) or randomSeed < 0
@@ -105,71 +113,116 @@ def segmentImages(
     ))
 
     # Get image list
-    if listFile:
-        with open(listFile) as file: imagePathList = file.read().splitlines()
+    if listFile: 
+        # Get file paths from specified list file
+        with open(listFile) as file: imagePathOut = file.read().splitlines()
+
+        # Validate paths obtained from list
+        imagePathList = [
+            path for path in imagePathOut if os.path.isfile(
+                os.path.join(imageFolder, path)
+            ) and os.path.splitext(path)[1] in imageExts
+        ]
+
+        # Check that enough images were found
         if len(imagePathList) == 0:
             shutil.rmtree(segmentPath)
             raise FileNotFoundError((
-                'No images were found in the specified list. Check that'
-                f' the specified file "{listFile}" contains a list of '
-                'accurate paths to images.'
+                'No valid image paths were found in the specified list.'
+                f' Check that the specified file "{listFile}" contains '
+                'a list of newline-separated paths to images, and that '
+                'the paths in said list are accurate.'
             ))
         elif not withReplacement and len(imagePathList) < imagesToSegment:
             shutil.rmtree(segmentPath)
             raise ValueError((
-                f'Function specified {imagesToSegment} images to sample'
-                f' for segmenting, but only {len(imagePathList)} were '
-                f'found. Check that the file "{listFile}" contains '
-                'enough valid paths to images, or set withReplacement ='
-                ' True to allow for duplicate images when sampling.'
+                f'Function specifies {imagesToSegment} images to sample'
+                f' for segmenting, but only {len(imagePathList)} valid '
+                f'images were found. Check that the file "{listFile}" '
+                'contains enough valid paths to images, or set '
+                'withReplacement = True to allow for duplicate images '
+                'when sampling.'
             ))
-    else:
+    else: 
+        # Search specified folder for valid images
         imagePathList = [
             img for img in os.listdir(imageFolder) if os.path.isfile(
                 os.path.join(imageFolder, img)
             ) and os.path.splitext(img)[1] in imageExts
         ]
+
+        # Check that enough images were found
         if len(imagePathList) == 0:
             shutil.rmtree(segmentPath)
             raise FileNotFoundError((
-                'No images were found in the specified folder. Check '
+                'No valid images were found in the specified folder. Check '
                 f'that the specified directory "{imageFolder}" is '
-                'correct and contains images to sample.'
+                'correct and contains valid images to sample.'
             ))
         elif not withReplacement and len(imagePathList) < imagesToSegment:
             shutil.rmtree(segmentPath)
             raise ValueError((
-                f'Function specified {imagesToSegment} images to sample'
-                f' for segmenting, but only {len(imagePathList)} were '
-                f'found. Check that the folder "{imageFolder}" contains '
-                'enough images, or set withReplacement = True to allow '
-                'for duplicate images when sampling.'
+                f'Function specifies {imagesToSegment} images to sample'
+                f' for segmenting, but only {len(imagePathList)} valid '
+                'images were found. Check that the folder '
+                f'"{imageFolder}" contains enough valid images, or set '
+                'withReplacement = True to allow for duplicate images '
+                'when sampling.'
             ))
 
     # Set random state for reproducibility
     rand = np.random.default_rng(randomSeed)
     
     # Sample images randomly
-    sampledImagePaths = [
-        (img for img in rand.choice(
+    sampledImagePaths = [img for img in rand.choice(
             imagePathList, imagesToSegment, replace = withReplacement
-        )) if imagesToSegment else imagePathList
-    ]
+    )] if imagesToSegment else imagePathList
     
     # Segment images
-    imageData = io.imread_collection(sampledImagePaths, as_gray = True)
+    imageData = []
+    for img in sampledImagePaths:
+        imageData.append(
+            imread(os.path.join(imageFolder, img), as_gray = True)
+        )
+
+    # Throw error if segment size is too big for one of the images
+    if min([img.shape[0] for img in imageData]) < segmentHeight:
+        shutil.rmtree(segmentPath)
+        raise ValueError((
+            f'Specified segment height "{segmentHeight}" is too large '
+            'for at least one of the selected images. Lower the value '
+            'of segmentHeight or remove any images less than '
+            f'{segmentHeight} pixels tall from "{imageFolder}".'
+        ))
+    if min([img.shape[1] for img in imageData]) < segmentWidth:
+        shutil.rmtree(segmentPath)
+        raise ValueError((
+            f'Specified segment width "{segmentWidth}" is too large for'
+            ' at least one of the selected images. Lower the value of '
+            'segmentWidth or remove any images less than '
+            f'{segmentWidth} pixels wide from "{imageFolder}".'
+        ))
+
     patchList = np.empty(
         (imagesToSegment * segmentsPerImage, segmentHeight, segmentWidth)
     )
-    for i in range(0, patchList.shape[0], segmentsPerImage):
-        patchList[i:i + segmentsPerImage] = extract_patches_2d(
-            imageData[i / segmentsPerImage], (segmentHeight, segmentWidth), 
-            max_patches = segmentsPerImage, random_state = randomSeed
-        )
+    try:
+        for i in range(0, patchList.shape[0], segmentsPerImage):
+            patchList[i:i + segmentsPerImage] = extract_patches_2d(
+                imageData[i // segmentsPerImage], (segmentHeight, segmentWidth), 
+                max_patches = segmentsPerImage, random_state = randomSeed
+            )
+    except Exception as e:
+        # Delete segment directory before letting scikit throw error
+        shutil.rmtree(segmentPath)
+        raise e
 
-    # Save patches as images
+    # Save patches as PNG images with procedural names
     for index, img in enumerate(patchList):
-        io.imsave(os.path.join(segmentPath, f'N{index:06}.png'), img)
+        imsave(
+            os.path.join(segmentPath, f'N{index:06}.png'), 
+            (65535 * img).astype(np.uint16) # needed to save as PNG
+        )
 
 
 
@@ -233,7 +286,7 @@ def createDataset(
     # Validate parameters
     if not os.path.isfile(tarfilePath):
         raise FileNotFoundError(
-            f'Specified file at {tarfilePath} does not exist'
+            f'Specified tarfile at {tarfilePath} does not exist'
         )
     elif not isinstance(trainSize, int) or trainSize < 1:
         raise ValueError(
@@ -470,9 +523,6 @@ Outputs:
     hogImage: 2D NumPy array representing an image visualising the 
     calculated HOG features and their orientation. Only returned if 
     'returnHOGImage' is True
-
-TODO: Check scikit-image hog source code to confirm it follows the 
-report requirements in non-parameterised ways (gradient, block stride)
 """
 def computeHOGFeatures(
         imagePath, numberOfBins = 9, cellDimensions = (8, 8),
@@ -510,18 +560,18 @@ def computeHOGFeatures(
         )
 
     # Read the image
-    img = io.imread(imagePath)
+    img = imread(imagePath)
     
     # Resize to 64x128 pixels if needed
     if img.shape[0] != 128 or img.shape[1] != 64:
-        img = transform.resize(img, (128, 64), anti_aliasing=True)
+        img = resize(img, (128, 64), anti_aliasing=True)
     
     # Convert image to grayscale (handle both RGB and RGBA images)
     if len(img.shape) > 2:
         # For RGBA images (4 channels), remove the alpha channel first
         if img.shape[2] == 4:
             img = img[:, :, :3]
-        grayImg = color.rgb2gray(img)
+        grayImg = rgb2gray(img)
     else:
         grayImg = img
     
@@ -664,7 +714,7 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
 '''
 # Run createDataset to generate Daimler datasets
 createDataset(
-    'DC-ped-dataset_base.tar', imagePath = '1', 
+    './ExampleSets/DC-ped-dataset_base.tar', imagePath = '1', 
     positiveSamples = 'ped_examples', negativeSamples = 'non-ped_examples', 
     randomSeed = 42
 )
@@ -672,11 +722,14 @@ createDataset(
 
 
 
-'''
 # Run segmentImages to generate negative INRIA samples
 segmentImages(
-    'DC-ped-dataset_base.tar', imagePath = '1', 
-    positiveSamples = 'ped_examples', negativeSamples = 'non-ped_examples', 
+    './ExampleSets/InriaNonHuman', 
+    #segmentPath = './SegmentedImages2',
+    #listFile = './ExampleSets/negNames.lst', 
+    #imagesToSegment = 90,
+    #segmentsPerImage = 100,
+    #segmentHeight = 250,
+    #segmentWidth = 250,
     randomSeed = 42
 )
-'''
