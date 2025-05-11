@@ -67,6 +67,8 @@ Parameters:
 
     randomSeed: int representing the NumPy seed for ensuring random 
     selection is reproducible if necessary
+
+TODO: Handle images with alpha channel
 """
 def segmentImages(
         imageFolder, segmentPath = './SegmentedImages', listFile = None, 
@@ -188,9 +190,7 @@ def segmentImages(
     # Load the images
     imageData = []
     for img in sampledImagePaths:
-        imageData.append(
-            imread(os.path.join(imageFolder, img), as_gray = True)
-        )
+        imageData.append(imread(os.path.join(imageFolder, img)))
 
     # Throw error if segment size is too big for any of the images
     if min([img.shape[0] for img in imageData]) < segmentHeight:
@@ -215,7 +215,7 @@ def segmentImages(
         (
             imagesToSegment * segmentsPerImage if imagesToSegment 
             else len(imageData) * segmentsPerImage
-        ), segmentHeight, segmentWidth
+        ), segmentHeight, segmentWidth, 3
     ))
 
     # Generate segments
@@ -231,8 +231,7 @@ def segmentImages(
     for index, img in enumerate(patchList):
         imsave(
             os.path.join(segmentPath, f'N{index:06}.png'), 
-            (65535 * img).astype(np.uint16), # needed to save as PNG
-            check_contrast = False
+            img.astype(np.uint8), check_contrast = False
         )
 
 
@@ -320,7 +319,10 @@ def createDataset(
     
     # Remove trailing slash from imagePath to prevent issues with the 
     # tarfile functions not recognising the path
-    imagePathClean = imagePath if imagePath[-1] != '/' else imagePath[:-1]
+    imagePathClean = (
+        imagePath if imagePath == '' or imagePath[-1] != '/' 
+        else imagePath[:-1]
+    )
 
     # Create working directories
     try: os.mkdir(guiPath)
@@ -345,7 +347,7 @@ def createDataset(
     with tarfile.open(tarfilePath, 'r') as tf:
         # Check that the specified folders are in the tarfile
         fileNames = tf.getnames()
-        if len(
+        if imagePathClean != '' and len(
             [item for item in fileNames if item.startswith(imagePathClean)]
         ) == 0:
             # Delete the working directories since about to throw error
@@ -376,8 +378,11 @@ def createDataset(
         files = []
         for file in tf.getmembers():
             filePath, fileExtension = os.path.splitext(file.name)
-            if (filePath.startswith(f'{imagePathClean}/') and 
-                fileExtension in imageExts): 
+            if (
+                imagePathClean == '' or 
+                filePath.startswith(f'{imagePathClean}/') and 
+                fileExtension in imageExts
+            ): 
                 files.append(file)
 
         # Make sure enough samples were found for each type
@@ -728,30 +733,31 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
 # Run segmentImages to generate negative INRIA samples
 segmentImages(
     './ExampleSets/InriaNonHuman', 
-    #segmentPath = './SegmentedImages2',
+    segmentPath = './ExampleSets/SegmentedImages',
     #listFile = './ExampleSets/negNames.lst', 
     imagesToSegment = None,
-    #segmentsPerImage = 100,
+    segmentsPerImage = 5,
     #segmentHeight = 250,
     #segmentWidth = 250,
-    randomSeed = 42
+    #randomSeed = 42
 )
 '''
 
 '''
-# Run createDataset to generate Daimler datasets
+# Run createDataset to generate INRIA datasets
 createDataset(
-    './ExampleSets/DC-ped-dataset_base.tar', 
-    #trainSize = 1000,
+    './ExampleSets/INRIA.tar', 
+    trainSize = 3840,
+    testSize = 960,
     #workingPath = './test',
-    imagePath = '1', 
-    #guiPath = './Images for GUI'
-    positiveSamples = 'ped_examples', 
-    negativeSamples = 'non-ped_examples', 
-    #trainOutput = './trainingSet',
-    #testOutput = './testingSet',
+    imagePath = 'INRIA',
+    guiPath = './FullINRIAGUITest',
+    positiveSamples = 'PositiveImages', 
+    negativeSamples = 'NegativeImages', 
+    trainOutput = './INRIAFullTrain',
+    testOutput = './INRIAFullTest',
     #withReplacement = True,
-    randomSeed = 42
+    #randomSeed = 42
 )
 '''
 
