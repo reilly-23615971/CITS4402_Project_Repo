@@ -747,11 +747,11 @@ segmentImages(
 # Run createDataset to generate INRIA datasets
 createDataset(
     './ExampleSets/INRIA.tar', 
-    trainSize = 3840,
-    testSize = 960,
+    trainSize = 3600,
+    testSize = 900,
     #workingPath = './test',
     imagePath = 'INRIA',
-    guiPath = './FullINRIAGUITest',
+    guiPath = './Testing Images',
     positiveSamples = 'PositiveImages', 
     negativeSamples = 'NegativeImages', 
     trainOutput = './INRIAFullTrain',
