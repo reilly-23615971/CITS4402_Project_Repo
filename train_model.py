@@ -12,7 +12,7 @@ def train_and_save_model():
     train_tar_path = './ExampleSets/INRIAFullDataset/INRIAFullTrain.tar.gz'
     imagePath, imageFeatures, imageClass = formatDataset(
     tarfilePath=train_tar_path,
-    deleteDir=True,           
+    deleteDir=False,           
     randomSeed=42              )
     model = LinearSVC(random_state=42)
     model.fit(imageFeatures, imageClass)

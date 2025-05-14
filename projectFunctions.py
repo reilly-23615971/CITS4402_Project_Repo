@@ -720,8 +720,8 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
         imagePaths, imageFeatures, imageClasses, random_state = randomSeed
     )
 
-    # Delete extracted directory before returning 
-    #if deleteDir: shutil.rmtree(imageDir)
+    # Delete extracted directory before returning (if specified)
+    if deleteDir: shutil.rmtree(imageDir)
 
     # Return tuple of paths, features and labels
     return imagePaths, imageFeatures, imageClasses
