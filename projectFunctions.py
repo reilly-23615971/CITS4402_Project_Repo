@@ -711,17 +711,17 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
         raise e
     
     # Get classification label of each image
-    imageClasses = np.char.startswith(
-        imagePaths, os.path.join(imageDir, 'P')
-    )
+    imageClasses = np.array([
+        os.path.basename(path).startswith('P') for path in imagePath
+    ])
 
     # Shuffle dataset
     imagePaths, imageFeatures, imageClasses = shuffle(
         imagePaths, imageFeatures, imageClasses, random_state = randomSeed
     )
 
-    # Delete extracted directory before returning (if specified)
-    if deleteDir: shutil.rmtree(imageDir)
+    # Delete extracted directory before returning 
+    #if deleteDir: shutil.rmtree(imageDir)
 
     # Return tuple of paths, features and labels
     return imagePaths, imageFeatures, imageClasses

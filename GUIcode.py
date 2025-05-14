@@ -12,6 +12,10 @@ from PIL import Image, ImageTk
 import pandas as pd
 import os
 import random
+from projectFunctions import computeHOGFeatures
+import joblib
+from train_model import train_and_save_model
+
 
 class HumanDetectionGUI:
     def __init__(self, root):
@@ -21,6 +25,8 @@ class HumanDetectionGUI:
         self.image_list = []
         self.image_index = 0
         self.predictions = []
+
+        self.model = joblib.load("svm_model.joblib")
 
         # Image display
         self.image_label = tk.Label(root)
@@ -48,9 +54,9 @@ class HumanDetectionGUI:
         if not folder_path:
             return
 
-        files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
-        if len(files) != 20:
-            messagebox.showerror("Error", "Select a folder with exactly 20 images.")
+        files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.jpg', '.png', '.jpeg', 'pgm'))])
+        if len(files) == 0:
+            messagebox.showerror("Error", "No images found in folder.")
             return
 
         self.image_list = [(os.path.join(folder_path, f), f) for f in files]
@@ -71,7 +77,8 @@ class HumanDetectionGUI:
         self.filename_label.config(text=f"Filename: {fname}")
 
         if self.predictions[self.image_index] is None:
-            self.predictions[self.image_index] = random.randint(0, 1)
+            features = computeHOGFeatures(path)
+            self.predictions[self.image_index] = self.model.predict([features])[0]
 
         label = "Human" if self.predictions[self.image_index] == 1 else "Non-Human"
         self.prediction_label.config(text=f"Prediction: {label}")
@@ -93,12 +100,28 @@ class HumanDetectionGUI:
     # Export predictions to an Excel file
     # Each row contains the filename and the prediction (0 or 1)
     def export_predictions(self):
+        for i, (path, _) in enumerate(self.image_list):
+            if self.predictions[i] is None:
+                features = computeHOGFeatures(path)
+                self.predictions[i] = self.model.predict([features])[0]
+
+
+
         data = [(fname, int(pred)) for (_, fname), pred in zip(self.image_list, self.predictions)]
         df = pd.DataFrame(data, columns=["Filename", "Prediction"])
         df.to_excel("predictions.xlsx", index=False)
         messagebox.showinfo("Exported", "Saved as predictions.xlsx")
 
 if __name__ == "__main__":
+    train_and_save_model()
     root = tk.Tk()
     app = HumanDetectionGUI(root)
     root.mainloop()
+
+
+
+    # Delete the saved model after GUI closes
+    model_path = "svm_model.joblib"
+    if os.path.exists(model_path):
+        os.remove(model_path)
+        print(f"🧹 Deleted model file: {model_path}")
