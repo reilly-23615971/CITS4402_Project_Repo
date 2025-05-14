@@ -9,7 +9,7 @@ import shutil
 
 
 def train_and_save_model():
-    train_tar_path = './ExampleSets/train_set.tar.gz'
+    train_tar_path = './ExampleSets/INRIAFullDataset/INRIAFullTrain.tar.gz'
     imagePath, imageFeatures, imageClass = formatDataset(
     tarfilePath=train_tar_path,
     deleteDir=True,           
@@ -17,10 +17,9 @@ def train_and_save_model():
     model = LinearSVC(random_state=42)
     model.fit(imageFeatures, imageClass)
     joblib.dump(model, "svm_model.joblib")
+    print("SVM model trained and saved to 'svm_model.joblib'")
 
-
-
-print("SVM model trained and saved to 'svm_model.joblib'")
+# train_and_save_model()
 
 
 
