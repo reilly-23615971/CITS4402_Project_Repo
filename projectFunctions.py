@@ -712,7 +712,7 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
     
     # Get classification label of each image
     imageClasses = np.array([
-        os.path.basename(path).startswith('P') for path in imagePath
+        os.path.basename(path).startswith('P') for path in imagePaths
     ])
 
     # Shuffle dataset
@@ -764,7 +764,7 @@ createDataset(
 '''
 # Run formatDataset to get HOG features
 formatDataset(
-    './ExampleSets/train_set.tar.gz',
+    './ExampleSets/INRIASmallDataset/INRIASmallTest.tar.gz',
     #deleteDir = True,
     randomSeed = 42,
     #numberOfBins = 9,
