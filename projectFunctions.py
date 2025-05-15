@@ -739,17 +739,25 @@ Function to train an SVM model on a specified dataset and save it as a
 Parameters:
     train_tar_path: string containing the name of/path to the tarfile 
     containing the images that will be used to train the model
+
+    outputFile: string containing the name of/path to the .joblib file 
+    the SVM model will be saved as
+
+    randomSeed: int representing the NumPy seed for ensuring random 
+    selection is reproducible if necessary
 """
-def trainAndSaveModel(train_tar_path, randomSeed = None):
+def trainAndSaveModel(
+        train_tar_path, outputFile = 'svm_model.joblib', randomSeed = None):
     _, imageFeatures, imageClass = formatDataset(
         tarfilePath = train_tar_path, 
+        blockDimensions = (3, 3),
         deleteDir = False, 
         randomSeed = randomSeed
     )
     model = LinearSVC(random_state = randomSeed)
     model.fit(imageFeatures, imageClass)
-    joblib.dump(model, "svm_model.joblib")
-    print("SVM model trained and saved to 'svm_model.joblib'")
+    joblib.dump(model, outputFile)
+    print(f'SVM model trained and saved to "{outputFile}"')
 
 
 # Commented-out function calls for testing
@@ -802,6 +810,7 @@ formatDataset(
 # Run trainAndSaveModel to generate a model
 trainAndSaveModel(
     './ExampleSets/INRIASmallDataset/INRIASmallTest.tar.gz',
+    outputFile = 'svm_model.joblib',
     randomSeed = 42,
 )
 '''
