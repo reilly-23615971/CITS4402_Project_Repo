@@ -9,7 +9,9 @@
 import os
 import shutil
 import tarfile
+import joblib
 import numpy as np
+from sklearn.svm import LinearSVC
 from sklearn.utils import shuffle
 from sklearn.feature_extraction.image import extract_patches_2d
 from skimage.io import imread, imsave
@@ -22,6 +24,8 @@ imageExts = {
     '.png', '.jpg', '.jpeg', '.jfif', '.pjpeg', '.pjp', 
     '.webp', '.pgm', '.avif', '.gif', '.svg', '.bmp', '.tiff'
 }
+
+
 
 """
 Function to generate several segments from a specified folder of images,
@@ -728,6 +732,34 @@ def formatDataset(tarfilePath, deleteDir = True, randomSeed = None,
 
 
 
+"""
+Function to train an SVM model on a specified dataset and save it as a 
+.joblib file to be used by the GUI
+
+Parameters:
+    train_tar_path: string containing the name of/path to the tarfile 
+    containing the images that will be used to train the model
+
+    outputFile: string containing the name of/path to the .joblib file 
+    the SVM model will be saved as
+
+    randomSeed: int representing the NumPy seed for ensuring random 
+    selection is reproducible if necessary
+"""
+def trainAndSaveModel(
+        train_tar_path, outputFile = 'svm_model.joblib', randomSeed = None):
+    _, imageFeatures, imageClass = formatDataset(
+        tarfilePath = train_tar_path, 
+        blockDimensions = (3, 3),
+        deleteDir = False, 
+        randomSeed = randomSeed
+    )
+    model = LinearSVC(random_state = randomSeed)
+    model.fit(imageFeatures, imageClass)
+    joblib.dump(model, outputFile)
+    print(f'SVM model trained and saved to "{outputFile}"')
+
+
 # Commented-out function calls for testing
 '''
 # Run segmentImages to generate negative INRIA samples
@@ -771,5 +803,14 @@ formatDataset(
     #cellDimensions = (8, 8),
     #blockDimensions = (2, 2),
     #normalisationTechnique = 'L2-Hys'
+)
+'''
+
+'''
+# Run trainAndSaveModel to generate a model
+trainAndSaveModel(
+    './ExampleSets/INRIASmallDataset/INRIASmallTest.tar.gz',
+    outputFile = 'svm_model.joblib',
+    randomSeed = 42,
 )
 '''

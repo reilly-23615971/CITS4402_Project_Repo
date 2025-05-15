@@ -11,10 +11,8 @@ from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 import pandas as pd
 import os
-import random
-from projectFunctions import computeHOGFeatures
+from projectFunctions import computeHOGFeatures, trainAndSaveModel
 import joblib
-from train_model import train_and_save_model
 
 
 class HumanDetectionGUI:
@@ -113,7 +111,7 @@ class HumanDetectionGUI:
         messagebox.showinfo("Exported", "Saved as predictions.xlsx")
 
 if __name__ == "__main__":
-    train_and_save_model()
+    trainAndSaveModel('./ExampleSets/INRIAFullDataset/INRIAFullTrain.tar.gz')
     root = tk.Tk()
     app = HumanDetectionGUI(root)
     root.mainloop()
