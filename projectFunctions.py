@@ -745,72 +745,101 @@ Parameters:
 
     randomSeed: int representing the NumPy seed for ensuring random 
     selection is reproducible if necessary
+
+    numberOfBins: int representing the number of bins that 
+    the gradient directions will be sorted into, a.k.a. the number of 
+    unique orientations possible in the HOG features. Defaults to 9 bins
+    per the project task statement. Originates from computeHOGFeatures()
+
+    cellDimensions: tuple containing 2 ints representing the length and 
+    width of each cell used for HOG feature calculation, measured in 
+    pixels. Defaults to (8, 8), i.e. 8*8 cells, per the project task 
+    statement. Originates from computeHOGFeatures()
+
+    blockDimensions: tuple containing 2 ints representing the length and
+    width of each block used for HOG feature calculation, measured in 
+    cells. Defaults to (2, 2), i.e. 4 cells per block, per the project 
+    task statement. Originates from computeHOGFeatures()
+
+    normalisationTechnique: string describing the normalisation method 
+    used on the blocks. Possible values are 'L1' (the L1/Manhattan 
+    norm), 'L1-sqrt' (the square root of the L1 norm), 'L2' (the 
+    L2/Euclidean norm), and 'L2-Hys' (the L2 norm, then thresholding 
+    high values to a maximum of 0.2, then the L2 norm again). Defaults 
+    to 'L2-Hys' per the project task statement. Originates from 
+    computeHOGFeatures()
 """
 def trainAndSaveModel(
-        train_tar_path, outputFile = 'svm_model.joblib', randomSeed = None):
+        train_tar_path, outputFile = 'svm_model.joblib', randomSeed = None, 
+        numberOfBins = 9, cellDimensions = (8, 8), blockDimensions = (2, 2), 
+        normalisationTechnique = 'L2-Hys'):
     _, imageFeatures, imageClass = formatDataset(
         tarfilePath = train_tar_path, 
-        blockDimensions = (3, 3),
+        numberOfBins = numberOfBins,
+        cellDimensions = cellDimensions,
+        blockDimensions = blockDimensions,
+        normalisationTechnique = normalisationTechnique,
         deleteDir = False, 
         randomSeed = randomSeed
     )
-    model = LinearSVC(random_state = randomSeed)
+    model = LinearSVC(C = 0.01, random_state = randomSeed)
     model.fit(imageFeatures, imageClass)
     joblib.dump(model, outputFile)
     print(f'SVM model trained and saved to "{outputFile}"')
 
 
 # Commented-out function calls for testing
+# These calls match the parameters we used for our final dataset/model
 '''
 # Run segmentImages to generate negative INRIA samples
 segmentImages(
-    './ExampleSets/InriaNonHuman', 
-    segmentPath = './ExampleSets/SegmentedImages',
-    #listFile = './ExampleSets/negNames.lst', 
-    imagesToSegment = None,
+    './INRIAPerson/Train/neg', 
+    segmentPath = './NegativeImages',
+    listFile = './INRIAPerson/Train/neg.lst', 
+    imagesToSegment = None, # segment every image
     segmentsPerImage = 5,
-    #segmentHeight = 250,
-    #segmentWidth = 250,
-    #randomSeed = 42
+    segmentHeight = 160,
+    segmentWidth = 96,
 )
 '''
 
 '''
 # Run createDataset to generate INRIA datasets
 createDataset(
-    './ExampleSets/INRIA.tar', 
+    './Others/FormattedImages.tar', 
     trainSize = 3600,
     testSize = 900,
-    #workingPath = './test',
+    workingPath = './WorkingData',
     imagePath = 'INRIA',
     guiPath = './Testing Images',
     positiveSamples = 'PositiveImages', 
     negativeSamples = 'NegativeImages', 
-    trainOutput = './INRIAFullTrain',
-    testOutput = './INRIAFullTest',
-    #withReplacement = True,
-    #randomSeed = 42
+    trainOutput = './Others/INRIAFullTrain',
+    testOutput = './Others/INRIAFullTest',
+    withReplacement = False,
 )
 '''
 
 '''
 # Run formatDataset to get HOG features
 formatDataset(
-    './ExampleSets/INRIASmallDataset/INRIASmallTest.tar.gz',
-    #deleteDir = True,
-    randomSeed = 42,
-    #numberOfBins = 9,
-    #cellDimensions = (8, 8),
-    #blockDimensions = (2, 2),
-    #normalisationTechnique = 'L2-Hys'
+    './Others/INRIAFullTrain.tar.gz',
+    deleteDir = True,
+    numberOfBins = 9,
+    cellDimensions = (8, 8),
+    blockDimensions = (2, 2),
+    normalisationTechnique = 'L2-Hys'
 )
 '''
 
 '''
 # Run trainAndSaveModel to generate a model
 trainAndSaveModel(
-    './ExampleSets/INRIASmallDataset/INRIASmallTest.tar.gz',
+    './Others/INRIAFullTrain.tar.gz',
     outputFile = 'svm_model.joblib',
-    randomSeed = 42,
+    numberOfBins = 9,
+    cellDimensions = (8, 8),
+    blockDimensions = (2, 2),
+    normalisationTechnique = 'L2-Hys'
 )
 '''

@@ -14,6 +14,13 @@ import os
 from projectFunctions import computeHOGFeatures, trainAndSaveModel
 import joblib
 
+# constants defining model parameters
+bin_count = 9
+cell_dimensions = (8, 8)
+block_dimensions = (3, 3)
+norm_technique = 'L2-Hys'
+
+
 
 class HumanDetectionGUI:
     def __init__(self, root):
@@ -75,7 +82,7 @@ class HumanDetectionGUI:
         self.filename_label.config(text=f"Filename: {fname}")
 
         if self.predictions[self.image_index] is None:
-            features = computeHOGFeatures(path)
+            features = computeHOGFeatures(path, numberOfBins=bin_count, cellDimensions=cell_dimensions, blockDimensions=block_dimensions, normalisationTechnique=norm_technique)
             self.predictions[self.image_index] = self.model.predict([features])[0]
 
         label = "Human" if self.predictions[self.image_index] == 1 else "Non-Human"
@@ -100,7 +107,7 @@ class HumanDetectionGUI:
     def export_predictions(self):
         for i, (path, _) in enumerate(self.image_list):
             if self.predictions[i] is None:
-                features = computeHOGFeatures(path)
+                features = computeHOGFeatures(path, numberOfBins=bin_count, cellDimensions=cell_dimensions, blockDimensions=block_dimensions, normalisationTechnique=norm_technique)
                 self.predictions[i] = self.model.predict([features])[0]
 
 
@@ -111,7 +118,7 @@ class HumanDetectionGUI:
         messagebox.showinfo("Exported", "Saved as predictions.xlsx")
 
 if __name__ == "__main__":
-    trainAndSaveModel('./ExampleSets/INRIAFullDataset/INRIAFullTrain.tar.gz')
+    trainAndSaveModel('./ExampleSets/INRIAFullDataset/INRIAFullTrain.tar.gz', numberOfBins=bin_count, cellDimensions=cell_dimensions, blockDimensions=block_dimensions, normalisationTechnique=norm_technique)
     root = tk.Tk()
     app = HumanDetectionGUI(root)
     root.mainloop()
