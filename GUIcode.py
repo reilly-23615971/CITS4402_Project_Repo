@@ -6,15 +6,19 @@
 # Code for GUI
 
 # imports
+import os
+import argparse
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import joblib
 from PIL import Image, ImageTk
 import pandas as pd
-import os
 from projectFunctions import computeHOGFeatures, trainAndSaveModel
-import joblib
 
-# constants defining model parameters
+
+
+# Constants defining model parameters for when model is generated live
+# Parameters were selected through our ablation studies
 bin_count = 9
 cell_dimensions = (8, 8)
 block_dimensions = (3, 3)
@@ -31,7 +35,7 @@ class HumanDetectionGUI:
         self.image_index = 0
         self.predictions = []
 
-        self.model = joblib.load("svm_model.joblib")
+        self.model = joblib.load(args.model_path)
 
         # Image display
         self.image_label = tk.Label(root)
@@ -53,7 +57,6 @@ class HumanDetectionGUI:
         tk.Button(self.btn_frame, text="Export to predictions.xlsx", command=self.export_predictions).grid(row=0, column=3)
 
     # Load folder with images
-    # Ensure the folder contains exactly 20 images
     def load_folder(self):
         folder_path = filedialog.askdirectory()
         if not folder_path:
@@ -70,7 +73,6 @@ class HumanDetectionGUI:
         self.show_image()
 
     # Display the current image and its filename
-    # Randomly assign a prediction (0 or 1) if not already assigned
     def show_image(self):
         path, fname = self.image_list[self.image_index]
         image = Image.open(path).resize((256, 512))
@@ -89,14 +91,12 @@ class HumanDetectionGUI:
         self.prediction_label.config(text=f"Prediction: {label}")
 
     # Show the next image in the list
-    # If at the end, loop back to the start
     def show_next(self):
         if self.image_index < len(self.image_list) - 1:
             self.image_index += 1
             self.show_image()
 
     # Show the previous image in the list
-    # If at the start, loop back to the end
     def show_previous(self):
         if self.image_index > 0:
             self.image_index -= 1
@@ -117,16 +117,46 @@ class HumanDetectionGUI:
         df.to_excel("predictions.xlsx", index=False)
         messagebox.showinfo("Exported", "Saved as predictions.xlsx")
 
+
+
+# Initialize argument parser
+parser = argparse.ArgumentParser(description="Open GUI for predicting whether images contain humans using HOG features")
+
+# Specify parameters, ensuring existing model and dataset to create 
+# model are mutually exclusive to one another
+parser.add_argument("-m", "--model_path", default='svm_model.joblib', help = "Path to trained SVM model as a .joblib file")
+parser.add_argument("-d", "--dataset_path", help = "Path to dataset to train the model on as a .tar.gz file. If included, the code will attempt to train an SVM model on this dataset and save it to model_path before opening the GUI.")
+
 if __name__ == "__main__":
-    trainAndSaveModel('./ExampleSets/INRIAFullDataset/INRIAFullTrain.tar.gz', numberOfBins=bin_count, cellDimensions=cell_dimensions, blockDimensions=block_dimensions, normalisationTechnique=norm_technique)
+    # Get arguments from command line
+    args = parser.parse_args()
+    # Create model if dataset to use was specified
+    if args.dataset_path:
+        if not os.path.isfile(args.dataset_path):
+            raise FileNotFoundError(
+                f'The specified dataset zip file at {args.dataset_path} does not exist.'
+            )
+        print(f"Training model with data from {args.dataset_path}...")
+        trainAndSaveModel(
+            args.dataset_path, outputFile = args.model_path,
+            numberOfBins=bin_count, cellDimensions=cell_dimensions, 
+            blockDimensions=block_dimensions, 
+            normalisationTechnique=norm_technique
+        )
+        print(f"Model saved to {args.model_path}.")
+    else:
+        if not os.path.isfile(args.model_path):
+            raise FileNotFoundError(
+                f'The SVM model file at {args.model_path} does not exist.'
+            )
+    # Run the GUI
+    print("Opening GUI...")
     root = tk.Tk()
     app = HumanDetectionGUI(root)
     root.mainloop()
 
-
-
-    # Delete the saved model after GUI closes
-    model_path = "svm_model.joblib"
-    if os.path.exists(model_path):
-        os.remove(model_path)
-        print(f"🧹 Deleted model file: {model_path}")
+    print("The GUI has been closed.")
+    # Delete the saved model after GUI closes if it was created just now
+    if args.dataset_path and os.path.exists(args.model_path):
+        os.remove(args.model_path)
+        print(f"Deleted model file: {args.model_path}")

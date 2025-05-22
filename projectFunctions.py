@@ -71,8 +71,6 @@ Parameters:
 
     randomSeed: int representing the NumPy seed for ensuring random 
     selection is reproducible if necessary
-
-TODO: Handle images with alpha channel
 """
 def segmentImages(
         imageFolder, segmentPath = './SegmentedImages', listFile = None, 
@@ -789,7 +787,8 @@ def trainAndSaveModel(
 
 
 # Commented-out function calls for testing
-# These calls match the parameters we used for our final dataset/model
+# These calls match the parameters we used for our final dataset/model 
+# (excluding the different file paths)
 '''
 # Run segmentImages to generate negative INRIA samples
 segmentImages(
@@ -806,7 +805,7 @@ segmentImages(
 '''
 # Run createDataset to generate INRIA datasets
 createDataset(
-    './Others/FormattedImages.tar', 
+    './ExampleSets/FormattedImages.tar', 
     trainSize = 3600,
     testSize = 900,
     workingPath = './WorkingData',
@@ -823,7 +822,7 @@ createDataset(
 '''
 # Run formatDataset to get HOG features
 formatDataset(
-    './Others/INRIAFullTrain.tar.gz',
+    './ExampleSets/INRIAFullTrain.tar.gz',
     deleteDir = True,
     numberOfBins = 9,
     cellDimensions = (8, 8),
@@ -835,7 +834,7 @@ formatDataset(
 '''
 # Run trainAndSaveModel to generate a model
 trainAndSaveModel(
-    './Others/INRIAFullTrain.tar.gz',
+    './ExampleSets/INRIAFullTrain.tar.gz',
     outputFile = 'svm_model.joblib',
     numberOfBins = 9,
     cellDimensions = (8, 8),
