@@ -117,24 +117,27 @@ class HumanDetectionGUI:
     # Export predictions to an Excel file
     # Each row contains the filename and the prediction (0 or 1)
     def export_predictions(self):
+        # Ensure images have been loaded
         if not self.image_list: messagebox.showerror(
             "Error", 
             "No images loaded. Please load an image folder before exporting predictions."
         )
-        for i, (path, _) in enumerate(self.image_list):
-            if self.predictions[i] is None:
-                features = computeHOGFeatures(
-                    path, numberOfBins=bin_count, cellDimensions=cell_dimensions, 
-                    blockDimensions=block_dimensions, normalisationTechnique=norm_technique
-                )
-                self.predictions[i] = self.model.predict([features])[0]
-
-
-
-        data = [(fname, int(pred)) for (_, fname), pred in zip(self.image_list, self.predictions)]
-        df = pd.DataFrame(data, columns=["Filename", "Prediction"])
-        df.to_excel("predictions.xlsx", index=False)
-        messagebox.showinfo("Exported", "Saved as predictions.xlsx")
+        else:
+            # Make sure features have been calculated for each image
+            for i, (path, _) in enumerate(self.image_list):
+                if self.predictions[i] is None:
+                    features = computeHOGFeatures(
+                        path, numberOfBins=bin_count, 
+                        cellDimensions=cell_dimensions, 
+                        blockDimensions=block_dimensions, 
+                        normalisationTechnique=norm_technique
+                    )
+                    self.predictions[i] = self.model.predict([features])[0]
+            # Save data as Excel file
+            data = [(fname, int(pred)) for (_, fname), pred in zip(self.image_list, self.predictions)]
+            df = pd.DataFrame(data, columns=["Filename", "Prediction"])
+            df.to_excel("predictions.xlsx", index=False)
+            messagebox.showinfo("Exported", "Saved as predictions.xlsx")
 
 
 
