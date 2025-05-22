@@ -5,14 +5,18 @@
 # Reilly Evans (23615971)
 # Code for GUI
 
-# imports
+# library imports
 import os
+import sys
 import argparse
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import joblib
 from PIL import Image, ImageTk
 import pandas as pd
+
+# Import our functions from the Others folder
+sys.path.insert(1, './Others')
 from projectFunctions import computeHOGFeatures, trainAndSaveModel
 
 
@@ -146,7 +150,7 @@ parser = argparse.ArgumentParser(
 # Specify parameters, ensuring existing model and dataset to create 
 # model are mutually exclusive to one another
 parser.add_argument(
-    "-m", "--model_path", default='svm_model.joblib', 
+    "-m", "--model_path", default='./Others/svm_model.joblib', 
     help = "Path to trained SVM model as a .joblib file"
 )
 parser.add_argument(
