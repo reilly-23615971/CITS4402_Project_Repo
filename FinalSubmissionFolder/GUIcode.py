@@ -25,7 +25,7 @@ from projectFunctions import computeHOGFeatures, trainAndSaveModel
 # Parameters were selected through our ablation studies
 bin_count = 12
 cell_dimensions = (8, 8)
-block_dimensions = (3, 3)
+block_dimensions = (2, 2)
 norm_technique = 'L2-Hys'
 
 
